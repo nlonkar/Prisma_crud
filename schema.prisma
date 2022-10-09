@@ -1,0 +1,18 @@
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:password@localhost:3306/test"
+
+}
+
+generator db {
+  provider  = "prisma-client-py"
+  interface = "sync"
+}
+
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+}
+
