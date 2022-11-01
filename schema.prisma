@@ -1,18 +1,201 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "sync"
+  recursive_type_depth = "5"
+}
+
 datasource db {
   provider = "mysql"
   url      = "mysql://root:password@localhost:3306/test"
-
 }
 
-generator db {
-  provider  = "prisma-client-py"
-  interface = "sync"
+model mqtt_broker {
+  id          Int           @id @default(autoincrement())
+  name        String        @db.VarChar(45)
+  address     String        @db.VarChar(255)
+  port        Int           @default(1883)
+  mqtt_client mqtt_client[]
+  mqtt_sensor mqtt_sensor[]
 }
 
+model mqtt_client {
+  id              Int         @id @default(autoincrement())
+  name            String      @db.VarChar(255)
+  user            String?     @db.VarChar(255)
+  password        String?     @db.VarChar(255)
+  broker_id       Int
+  source_id       Int
+  is_in_operation Int         @default(0) @db.TinyInt
+  mqtt_broker     mqtt_broker @relation(fields: [broker_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_client_mqtt_broker1")
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
+  @@index([broker_id], map: "fk_mqtt_client_mqtt_broker1_idx")
+  @@index([source_id], map: "fk_mqtt_client_point_source1_idx")
 }
 
+model mqtt_map {
+  id                  Int                 @id @default(autoincrement())
+  sensor_id           Int
+  dataset_id          Int
+  point_id            Int?
+  mqtt_sensor_dataset mqtt_sensor_dataset @relation(fields: [dataset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_map_mqtt_sensor_dataset1")
+  mqtt_sensor         mqtt_sensor         @relation(fields: [sensor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_map_mqtt_sensor1")
+
+  @@index([sensor_id], map: "fk_mqtt_map_mqtt_sensor1_idx")
+  @@index([dataset_id], map: "fk_mqtt_map_mqtt_sensor_dataset1_idx")
+  @@index([point_id], map: "fk_mqtt_map_point1_idx")
+}
+
+model mqtt_sensor {
+  id               Int              @id @default(autoincrement())
+  name             String           @db.VarChar(255)
+  type_id          Int
+  broker_id        Int?
+  mqtt_broker      mqtt_broker?     @relation(fields: [broker_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_sensor_mqtt_broker1")
+  mqtt_sensor_type mqtt_sensor_type @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_sensor_mqtt_sensor_type1")
+  mqtt_map         mqtt_map[]
+
+  @@index([broker_id], map: "fk_mqtt_sensor_mqtt_broker1_idx")
+  @@index([type_id], map: "fk_mqtt_sensor_mqtt_sensor_type1_idx")
+}
+
+model mqtt_sensor_dataset {
+  id               Int              @id @default(autoincrement())
+  name             String           @db.VarChar(45)
+  type_id          Int
+  topic_id         Int
+  mqtt_topic       mqtt_topic       @relation(fields: [topic_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_sensor_dataset_mqtt_topic1")
+  mqtt_sensor_type mqtt_sensor_type @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_sensor_dataset_mqtt_sensor_type1")
+  mqtt_map         mqtt_map[]
+
+  @@index([type_id], map: "fk_mqtt_sensor_dataset_mqtt_sensor_type1_idx")
+  @@index([topic_id], map: "fk_mqtt_sensor_dataset_mqtt_topic1_idx")
+}
+
+model mqtt_sensor_type {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(255)
+  mqtt_sensor         mqtt_sensor[]
+  mqtt_sensor_dataset mqtt_sensor_dataset[]
+}
+
+model mqtt_topic {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(255)
+  type_id             Int
+  mqtt_topic_type     mqtt_topic_type       @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mqtt_topic_mqtt_topic_type1")
+  mqtt_sensor_dataset mqtt_sensor_dataset[]
+
+  @@index([type_id], map: "fk_mqtt_topic_mqtt_topic_type1_idx")
+}
+
+model mqtt_topic_type {
+  id         Int          @id @default(autoincrement())
+  name       String       @db.VarChar(45)
+  mqtt_topic mqtt_topic[]
+}
+
+model modbus_function {
+  id                      Int                       @id @default(autoincrement())
+  name                    String                    @db.VarChar(45)
+  val                     Int
+  modbus_function_profile modbus_function_profile[]
+}
+
+model pointsource {
+  PointSourceId   Int       @id @default(autoincrement())
+  PointSourceName String    @db.VarChar(45)
+  CreatedBy       String?   @db.VarChar(45)
+  CreatedOn       DateTime? @default(now()) @db.DateTime(0)
+  ModifiedBy      String?   @db.VarChar(45)
+  ModifiedOn      DateTime? @default(now()) @db.DateTime(0)
+  IsActive        Boolean?  @default(dbgenerated()) @db.Bit(1)
+  point           point[]
+}
+
+model modbus_device {
+  id                      Int                       @id @default(autoincrement())
+  name                    String                    @db.VarChar(45)
+  modbus_device_profile   modbus_device_profile[]
+  modbus_function_profile modbus_function_profile[]
+}
+
+model modbus_device_dataset {
+  id                      Int                     @id @default(autoincrement())
+  address                 Int
+  name                    String                  @db.VarChar(45)
+  function_profile_id     Int
+  modbus_function_profile modbus_function_profile @relation(fields: [function_profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modbus_device_dataset_modbus_function_profile1")
+
+  @@index([function_profile_id], map: "fk_modbus_device_dataset_modbus_function_profile1_idx")
+}
+
+model modbus_device_profile {
+  id                    Int                   @id @default(autoincrement())
+  name                  String                @db.VarChar(45)
+  slave_id              Int                   @default(1)
+  tcp_connection_id     Int
+  is_in_operation       Int                   @default(0) @db.TinyInt
+  source_id             Int
+  poll_rate_sec         Int                   @default(60)
+  device_id             Int
+  modbus_device         modbus_device         @relation(fields: [device_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modbus_device_profile_modbus_device2")
+  modbus_tcp_connection modbus_tcp_connection @relation(fields: [tcp_connection_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modbus_device_profile_modbus_tcp_connection1")
+
+  @@index([device_id], map: "fk_modbus_device_profile_modbus_device2_idx")
+  @@index([tcp_connection_id], map: "fk_modbus_device_profile_modbus_tcp_connection1_idx")
+  @@index([source_id], map: "fk_modbus_device_profile_point_source1_idx")
+}
+
+model modbus_function_profile {
+  id                    Int                     @id @default(autoincrement())
+  function_id           Int
+  base_address          Int                     @default(0)
+  byte_sequence         String?                 @db.VarChar(8)
+  size                  Int                     @default(1)
+  max_quantity          Int                     @default(8)
+  device_id             Int
+  modbus_device         modbus_device           @relation(fields: [device_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modbus_function_profile_modbus_device1")
+  modbus_function       modbus_function         @relation(fields: [function_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modbus_function_profile_modbus_function1")
+  modbus_device_dataset modbus_device_dataset[]
+
+  @@index([device_id], map: "fk_modbus_function_profile_modbus_device1_idx")
+  @@index([function_id], map: "fk_modbus_function_profile_modbus_function1_idx")
+}
+
+model modbus_protocol_type {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(45)
+  modbus_tcp_connection modbus_tcp_connection[]
+}
+
+model modbus_tcp_connection {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(45)
+  address               String                  @db.VarChar(255)
+  port                  Int                     @default(502)
+  is_in_operation       Int                     @default(0) @db.TinyInt
+  timeout_sec           Int                     @default(10)
+  idle_timeout_sec      Int                     @default(60)
+  protocol_type_id      Int
+  modbus_protocol_type  modbus_protocol_type    @relation(fields: [protocol_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_modbus_tcp_connection_modbus_protocol_type1")
+  modbus_device_profile modbus_device_profile[]
+
+  @@index([protocol_type_id], map: "fk_modbus_tcp_connection_modbus_protocol_type1_idx")
+}
+
+model point {
+  PointId              Int         @id @default(autoincrement())
+  ClientId             Int?
+  PointName            String      @db.VarChar(45)
+  PointTypeId          Int
+  CurrentPointSourceId Int
+  CreatedBy            String?     @db.VarChar(45)
+  CreatedOn            DateTime?   @default(now()) @db.DateTime(0)
+  ModifiedBy           String?     @db.VarChar(45)
+  ModifiedOn           DateTime?   @default(now()) @db.DateTime(0)
+  IsActive             Boolean?    @default(dbgenerated()) @db.Bit(1)
+  pointsource          pointsource @relation(fields: [CurrentPointSourceId], references: [PointSourceId], onDelete: NoAction, onUpdate: NoAction, map: "fk_dataset_source1")
+
+  @@index([PointTypeId], map: "fk_dataset_point_type_idx")
+  @@index([CurrentPointSourceId], map: "fk_dataset_source1_idx")
+}

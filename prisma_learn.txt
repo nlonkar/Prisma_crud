@@ -1,0 +1,2 @@
+prisma db pull
+prisma migrate dev
